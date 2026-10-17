@@ -34,18 +34,13 @@ label{font-size:.85rem;color:var(--mut);display:flex;flex-direction:column;gap:4
 <body>
 <div class="wrap" id="app"></div>
 <script>
-// Güvenli hafıza yöneticisi (LocalStorage engellense bile asla çökmez)
-let memoryStore = {};
-const safeStorage = {
-  getItem: (key) => {
-    try { return localStorage.getItem(key); } catch (e) { return memoryStore[key] || null; }
-  },
-  setItem: (key, val) => {
-    try { localStorage.setItem(key, val); } catch (e) { memoryStore[key] = val; }
-  }
+let mem = {};
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch(e) { return mem[k] || null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch(e) { mem[k] = v; } }
 };
 
-const DEFAULT_DATA = {
+const DEFAULT = {
   cats: ["Yüzük", "Kolye", "Bilezik", "Saat"],
   products: [],
   rates: { gold: 3000, usd: 34, eur: 37, at: 'Varsayılan' },
@@ -55,25 +50,23 @@ const DEFAULT_DATA = {
   }
 };
 
-function loadData() {
-  const saved = safeStorage.getItem('catalog_db');
-  if (saved) {
-    try { return JSON.parse(saved); } catch(e){}
-  }
-  safeStorage.setItem('catalog_db', JSON.stringify(DEFAULT_DATA));
-  return JSON.parse(JSON.stringify(DEFAULT_DATA));
+function load() {
+  const s = store.get('catalog_db');
+  if (s) { try { return JSON.parse(s); } catch(e){} }
+  store.set('catalog_db', JSON.stringify(DEFAULT));
+  return JSON.parse(JSON.stringify(DEFAULT));
 }
 
-function saveData() {
-  safeStorage.setItem('catalog_db', JSON.stringify(D));
-}
+function save() { store.set('catalog_db', JSON.stringify(D)); }
 
 const FORMULA = c => c / 3 / 1.25;
 const COLORED = ["Yakut (Ruby)","Safir (Sapphire)","Zümrüt (Emerald)","Ametist","Akuamarin","Topaz","Mavi Topaz","Turmalin","Granat","Peridot","Opal","Tanzanit","Sitrin","Morganit","Spinel","Aleksandrit","Turkuaz (Firuze)","Lapis Lazuli","Oniks","Mercan","İnci","Kunzit","Tsavorit","Rodolit","Ay Taşı","Kuvars","Zirkon","Heliodor","Diğer"];
 const CLARITY = ["FL","IF","VVS1","VVS2","VS1","VS2","SI1","SI2","I1","I2","I3"];
-const SCALES = {"GIA (D–Z)": "DEFGHIJKLMNOPQRSTUVWXYZ".split(''), "Eski (River–Cape)": ["River (D-E)","Top Wesselton (F)","Wesselton (G-H)","Top Crystal (I-J)","Crystal (K-L)","Top Cape (M-N)","Cape (O-Z)"]};
+const SCALES = {"GIA (D–Z)": "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(''), "Eski (River–Cape)": ["River (D-E)","Top Wesselton (F)","Wesselton (G-H)","Top Crystal (I-J)","Crystal (K-L)","Top Cape (M-N)","Cape (O-Z)"]};
 const $ = s => document.querySelector(s);
-let D = loadData(), auth = false, admin = false, q = '', cat = 'Tümü', ed = null, sett = false, rt = false, err = '', view = null;
+
+let D = load(), auth = false, admin = false, q = '', cat = 'Tümü', ed = null, sett = false, rt = false, err = '', view = null;
+
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = (n, c) => new Intl.NumberFormat('tr-TR', {style:'currency', currency:c}).format(n);
 const num = n => +n ? new Intl.NumberFormat('tr-TR', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n) : '–';
@@ -85,6 +78,7 @@ function price(p) {
   const base = (+p.cost || 0) * r, tl = base + FORMULA(base), e = +D.rates.eur;
   return {base, add:FORMULA(base), tl, eur: e ? tl / e : null};
 }
+
 const priceHtml = p => { const r = price(p); return r ? `<span class="price">${fmt(r.tl,'TRY')}</span>${r.eur ? `<span class="eur">${fmt(r.eur,'EUR')}</span>` : ''}` : '<span class="cost">Kur girilmedi</span>'; };
 const opts = (arr, v) => arr.map(a => `<option ${a === v ? 'selected' : ''}>${esc(a)}</option>`).join('');
 
@@ -102,7 +96,7 @@ function render() {
     $('#go').onclick = login; $('#p').onkeydown = e => { if (e.key === 'Enter') login(); }; return;
   }
   const R = D.rates, list = D.products.filter(p => (cat === 'Tümü' || p.cat === cat) && p.name.toLowerCase().includes(q.toLowerCase()));
-  app.innerHTML = `<div class="rates"><span>Gram altın: <b>${num(R.gold)} ₺</b></span><span>USD: <b>${num(R.usd)} ₺</b></span><span>EUR: <b>${num(R.eur)} ₺</b></span><span class="cost">${esc(R.at)}</span>${admin ? '<button id="rt">Kurları güncelle</button>' : ''}<button id="logout" style="margin-left:auto">Çıkış yap</button></div>
+  app.innerHTML = `<div class="rates"><span>Gram altın: <b>${num(R.gold)} ₺</b></span><span>USD: <b>${num(R.usd)} ₺</b></span><span>EUR: <b>${num(R.eur)} ₺</b></span><span class="cost">${esc(R.at)}</span>${admin ? '<button id="rt">Kurları güncelle</button>' : ''}<button id="logout" style="margin-left:auto">Çıkış</button></div>
   <header><h1>Ürün Kataloğu</h1><div class="row">${admin ? '<button id="add" class="p">+ Ürün</button><button id="addc">+ Kategori</button><button id="set">Ayarlar</button>' : ''}</div></header>
   <div class="bar"><input id="q" placeholder="Ürün ara…" value="${esc(q)}"></div>
   <div class="chips">${['Tümü', ...D.cats].map(c => `<button class="${c === cat ? 'on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
@@ -117,7 +111,7 @@ function render() {
   if (!admin) return;
   app.querySelectorAll('[data-e]').forEach(b => b.onclick = e => { e.stopPropagation(); ed = JSON.parse(JSON.stringify(D.products.find(p => p.id === b.dataset.e))); render(); });
   $('#add').onclick = () => { ed = {id:'p' + Date.now(), name:'', cat:D.cats[0], cost:0, cu:'TRY', gram:'', desc:'', img:'', st:{t:'none'}, isNew:true}; render(); };
-  $('#addc').onclick = () => { const n = prompt('Yeni kategori adı:'); if (n && !D.cats.includes(n)) { D.cats.push(n); render(); saveData(); } };
+  $('#addc').onclick = () => { const n = prompt('Yeni kategori adı:'); if (n && !D.cats.includes(n)) { D.cats.push(n); render(); save(); } };
   $('#set').onclick = () => { sett = true; render(); };
   $('#rt').onclick = () => { rt = true; render(); };
   if (ed) bindEditor(); if (sett) bindSettings(); if (rt) bindRates();
@@ -159,8 +153,8 @@ function grab() {
 function bindEditor() {
   $('#x').onclick = () => { ed = null; render(); };
   ['#c', '#st', '#sc'].forEach(id => { const e = $(id); if (e) e.onchange = () => { grab(); if (id === '#sc') ed.st.color = ''; render(); }; });
-  $('#ok').onclick = () => { grab(); const {isNew, ...p} = ed; const i = D.products.findIndex(o => o.id === p.id); i < 0 ? D.products.push(p) : D.products[i] = p; ed = null; render(); saveData(); };
-  const del = $('#del'); if (del) del.onclick = () => { if (confirm('Bu ürün silinsin mi?')) { D.products = D.products.filter(p => p.id !== ed.id); ed = null; render(); saveData(); } };
+  $('#ok').onclick = () => { grab(); const {isNew, ...p} = ed; const i = D.products.findIndex(o => o.id === p.id); i < 0 ? D.products.push(p) : D.products[i] = p; ed = null; render(); save(); };
+  const del = $('#del'); if (del) del.onclick = () => { if (confirm('Bu ürün silinsin mi?')) { D.products = D.products.filter(p => p.id !== ed.id); ed = null; render(); save(); } };
 }
 
 function ratesBox() {
@@ -172,7 +166,7 @@ function ratesBox() {
 
 function bindRates() {
   $('#rx').onclick = () => { rt = false; render(); };
-  $('#rk').onclick = () => { D.rates = {gold:+$('#rg').value || 0, usd:+$('#ru').value \vert{}\vert{} 0, eur:+$('#re').value || 0, at:'Son güncelleme: ' + new Date().toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'})}; rt = false; render(); saveData(); };
+  $('#rk').onclick = () => { D.rates = {gold:+$('#rg').value || 0, usd:+$('#ru').value \vert{}\vert{} 0, eur:+$('#re').value || 0, at:'Son güncelleme: ' + new Date().toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'})}; rt = false; render(); save(); };
 }
 
 function settings() {
@@ -182,7 +176,7 @@ function settings() {
 
 function bindSettings() {
   $('#sx').onclick = () => { sett = false; render(); };
-  $('#sk').onclick = () => { const a = D.acc, v = id => $(id).value.trim(); a.admin.user = v('#au') || a.admin.user; a.admin.pass = v('#ap') || a.admin.pass; a.viewer.user = v('#vu') || a.viewer.user; a.viewer.pass = v('#vp') || a.viewer.pass; sett = false; render(); saveData(); };
+  $('#sk').onclick = () => { const a = D.acc, v = id => $(id).value.trim(); a.admin.user = v('#au') || a.admin.user; a.admin.pass = v('#ap') || a.admin.pass; a.viewer.user = v('#vu') || a.viewer.user; a.viewer.pass = v('#vp') || a.viewer.pass; sett = false; render(); save(); };
 }
 
 function login() {
