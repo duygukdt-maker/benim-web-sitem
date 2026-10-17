@@ -1,74 +1,195 @@
 <!doctype html>
 <html lang="tr">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Urun Katalogu</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f6f4ef; color: #1f1d1a; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { background: #fff; padding: 30px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 100%; max-width: 360px; box-sizing: border-box; }
-        h2 { margin-top: 0; color: #1f5c4a; font-size: 1.5rem; text-align: center; margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #e4dfd5; border-radius: 10px; box-sizing: border-box; font-size: 1rem; }
-        button { width: 100%; padding: 12px; background: #1f5c4a; color: #fff; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; font-weight: bold; }
-        button:hover { background: #164335; }
-        .error { color: #b3372b; font-size: 0.9rem; text-align: center; margin-bottom: 10px; min-height: 20px; }
-        .success { text-align: center; }
-        .success h1 { color: #1f5c4a; font-size: 1.8rem; }
-        .logout-btn { background: #b3372b; margin-top: 20px; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ürün Kataloğu</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#1f1d1a;--mut:#6f6a62;--line:#e4dfd5;--acc:#1f5c4a;--accink:#fff;--danger:#b3372b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,Arial,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:12px 16px 60px}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:16px}
+h1{font-size:1.5rem;margin:0}
+button,input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;max-width:100%}
+button{cursor:pointer}button.p{background:var(--acc);color:var(--accink);border-color:var(--acc)}button.d{color:var(--danger)}
+.rates{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px;margin-bottom:14px;font-size:.92rem}
+.bar{display:flex;gap:8px;margin-bottom:14px}.bar input{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}.chips button{border-radius:99px;padding:5px 14px}.chips .on{background:var(--acc);color:var(--accink);border-color:var(--acc)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer}
+.img{aspect-ratio:4/3;background:var(--line);display:flex;align-items:center;justify-content:center;color:var(--mut)}.img img{width:100%;height:100%;object-fit:cover}
+.body{padding:12px;display:flex;flex-direction:column;gap:4px;flex:1}.cat{font-size:.78rem;color:var(--mut)}.desc{color:var(--mut);white-space:pre-line}
+.price{font-weight:700;font-size:1.15rem}.eur{font-size:.95rem;color:var(--mut)}.cost{font-size:.85rem;color:var(--mut)}
+.login{max-width:340px;margin:18vh auto 0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:12px}
+.err{color:var(--danger);font-size:.9rem;min-height:1.2em}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.mbox{background:var(--bg);border-radius:16px;padding:18px;width:100%;max-width:480px;max-height:90vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
+label{font-size:.85rem;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+.row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}.two{display:flex;gap:8px}.two>*{flex:1;min-width:0}
+.box{border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px}
+</style>
 </head>
 <body>
-
-<div id="app" class="card"></div>
-
+<div class="wrap" id="app"></div>
 <script>
-let isAuthenticated = false;
+let mem = {};
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch(e) { return mem[k] || null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch(e) { mem[k] = v; } }
+};
+
+const DEFAULT = {
+  cats: ["Yüzük", "Kolye", "Bilezik", "Saat"],
+  products: [],
+  rates: { gold: 3000, usd: 34, eur: 37, at: 'Varsayılan' },
+  acc: {
+    admin: { user: 'admin', pass: '1234' },
+    viewer: { user: 'musteri', pass: '1234' }
+  }
+};
+
+function load() {
+  const s = store.get('catalog_db');
+  if (s) { try { return JSON.parse(s); } catch(e){} }
+  store.set('catalog_db', JSON.stringify(DEFAULT));
+  return JSON.parse(JSON.stringify(DEFAULT));
+}
+
+function save() { store.set('catalog_db', JSON.stringify(D)); }
+
+const FORMULA = c => c / 3 / 1.25;
+const COLORED = ["Yakut (Ruby)","Safir (Sapphire)","Zümrüt (Emerald)","Ametist","Akuamarin","Topaz","Mavi Topaz","Turmalin","Granat","Peridot","Opal","Tanzanit","Sitrin","Morganit","Spinel","Aleksandrit","Turkuaz (Firuze)","Lapis Lazuli","Oniks","Mercan","İnci","Kunzit","Tsavorit","Rodolit","Ay Taşı","Kuvars","Zirkon","Heliodor","Diğer"];
+const CLARITY = ["FL","IF","VVS1","VVS2","VS1","VS2","SI1","SI2","I1","I2","I3"];
+const SCALES = {"GIA (D–Z)": "DEFGHIJKLMNOPQRSTUVWXYZ".split(''), "Eski (River–Cape)": ["River (D-E)","Top Wesselton (F)","Wesselton (G-H)","Top Crystal (I-J)","Crystal (K-L)","Top Cape (M-N)","Cape (O-Z)"]};
+const $ = s => document.querySelector(s);
+
+let D = load(), auth = false, admin = false, q = '', cat = 'Tümü', ed = null, sett = false, rt = false, err = '', view = null;
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = (n, c) => new Intl.NumberFormat('tr-TR', {style:'currency', currency:c}).format(n);
+const num = n => +n ? new Intl.NumberFormat('tr-TR', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n) : '–';
+const rate = c => c === 'USD' ? +D.rates.usd : c === 'EUR' ? +D.rates.eur : 1;
+
+function price(p) {
+  if ('pr' in p) return p.pr;
+  const r = rate(p.cu || 'TRY'); if (!r) return null;
+  const base = (+p.cost || 0) * r, tl = base + FORMULA(base), e = +D.rates.eur;
+  return {base, add:FORMULA(base), tl, eur: e ? tl / e : null};
+}
+
+const priceHtml = p => { const r = price(p); return r ? `<span class="price">${fmt(r.tl,'TRY')}</span>${r.eur ? `<span class="eur">${fmt(r.eur,'EUR')}</span>` : ''}` : '<span class="cost">Kur girilmedi</span>'; };
+const opts = (arr, v) => arr.map(a => `<option ${a === v ? 'selected' : ''}>${esc(a)}</option>`).join('');
+
+function stoneLines(p) {
+  const s = p.st || {}; if (p.cat === 'Saat') return [];
+  if (s.t === 'clear') return ['Taş: Renksiz (pırlanta)', s.clarity && 'Berraklık: ' + s.clarity, s.color && 'Renk (' + (s.scale || 'GIA (D–Z)') + '): ' + s.color, +s.ct && 'Karat: ' + s.ct].filter(Boolean);
+  if (s.t === 'color') return ['Taş: Renkli taş', s.name && 'Cins: ' + s.name, +s.ct && 'Karat: ' + s.ct].filter(Boolean);
+  return [];
+}
 
 function render() {
-    const app = document.getElementById("app");
-    
-    if (!isAuthenticated) {
-        app.innerHTML = `
-            <h2>Giriş Yap</h2>
-            <div id="errMsg" class="error"></div>
-            <input type="text" id="userInput" placeholder="Kullanıcı Adı" autocomplete="username">
-            <input type="password" id="passInput" placeholder="Şifre" autocomplete="current-password">
-            <button onclick="handleLogin()">Giriş Yap</button>
-        `;
-        
-        document.getElementById("passInput").onkeydown = function(e) {
-            if (e.key === "Enter") handleLogin();
-        };
-    } else {
-        app.innerHTML = `
-            <div class="success">
-                <h1>Başarılı! 🎉</h1>
-                <p>Sisteme hoş geldiniz.</p>
-                <button class="logout-btn" onclick="handleLogout()">Çıkış Yap</button>
-            </div>
-        `;
-    }
+  const app = $('#app');
+  if (!auth) {
+    app.innerHTML = `<div class="login"><h1>Giriş Yap</h1><input id="u" placeholder="Kullanıcı adı" autocomplete="username"><input id="p" type="password" placeholder="Şifre" autocomplete="current-password"><div class="err">${esc(err)}</div><button class="p" id="go">Giriş yap</button></div>`;
+    $('#go').onclick = login; $('#p').onkeydown = e => { if (e.key === 'Enter') login(); }; return;
+  }
+  const R = D.rates, list = D.products.filter(p => (cat === 'Tümü' || p.cat === cat) && p.name.toLowerCase().includes(q.toLowerCase()));
+  app.innerHTML = `<div class="rates"><span>Gram altın: <b>${num(R.gold)} ₺</b></span><span>USD: <b>${num(R.usd)} ₺</b></span><span>EUR: <b>${num(R.eur)} ₺</b></span><span class="cost">${esc(R.at)}</span>${admin ? '<button id="rt">Kurları güncelle</button>' : ''}<button id="logout" style="margin-left:auto">Çıkış</button></div>
+  <header><h1>Ürün Kataloğu</h1><div class="row">${admin ? '<button id="add" class="p">+ Ürün</button><button id="addc">+ Kategori</button><button id="set">Ayarlar</button>' : ''}</div></header>
+  <div class="bar"><input id="q" placeholder="Ürün ara…" value="${esc(q)}"></div>
+  <div class="chips">${['Tümü', ...D.cats].map(c => `<button class="${c === cat ? 'on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+  <div class="grid">${list.map(p => `<div class="card" data-v="${p.id}"><div class="img">${p.img ? `<img src="${esc(p.img)}" alt="${esc(p.name)}">` : 'Görsel yok'}</div><div class="body"><span class="cat">${esc(p.cat)}</span><strong>${esc(p.name)}</strong>${priceHtml(p)}${admin ? `<button data-e="${p.id}">Düzenle</button>` : ''}</div></div>`).join('') || '<p>Henüz ürün yok.</p>'}</div>
+  ${ed ? editor() : ''}${sett ? settings() : ''}${rt ? ratesBox() : ''}${view ? viewer() : ''}`;
+  
+  $('#logout').onclick = () => { auth = false; admin = false; render(); };
+  $('#q').oninput = e => { q = e.target.value; render(); const i = $('#q'); i.focus(); i.setSelectionRange(q.length, q.length); };
+  app.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { cat = b.dataset.c; render(); });
+  app.querySelectorAll('[data-v]').forEach(c => c.onclick = () => { view = D.products.find(p => p.id === c.dataset.v); render(); });
+  if (view) { $('#vx').onclick = () => { view = null; render(); }; const ve = $('#ve'); if (ve) ve.onclick = () => { ed = JSON.parse(JSON.stringify(view)); view = null; render(); }; }
+  if (!admin) return;
+  app.querySelectorAll('[data-e]').forEach(b => b.onclick = e => { e.stopPropagation(); ed = JSON.parse(JSON.stringify(D.products.find(p => p.id === b.dataset.e))); render(); });
+  $('#add').onclick = () => { ed = {id:'p' + Date.now(), name:'', cat:D.cats[0], cost:0, cu:'TRY', gram:'', desc:'', img:'', st:{t:'none'}, isNew:true}; render(); };
+  $('#addc').onclick = () => { const n = prompt('Yeni kategori adı:'); if (n && !D.cats.includes(n)) { D.cats.push(n); render(); save(); } };
+  $('#set').onclick = () => { sett = true; render(); };
+  $('#rt').onclick = () => { rt = true; render(); };
+  if (ed) bindEditor(); if (sett) bindSettings(); if (rt) bindRates();
 }
 
-function handleLogin() {
-    const u = document.getElementById("userInput").value.trim();
-    const p = document.getElementById("passInput").value.trim();
-    
-    if ((u === "admin" && p === "1234") || (u === "musteri" && p === "1234")) {
-        isAuthenticated = true;
-        render();
-    } else {
-        document.getElementById("errMsg").innerText = "Kullanıcı adı veya şifre hatalı!";
-    }
+function viewer() {
+  const p = view, r = price(p), L = stoneLines(p);
+  return `<div class="modal"><div class="mbox"><div class="img" style="border-radius:10px;overflow:hidden">${p.img ? `<img src="${esc(p.img)}" alt="${esc(p.name)}">` : 'Görsel yok'}</div><span class="cat">${esc(p.cat)}</span><h1>${esc(p.name)}</h1>${priceHtml(p)}
+  ${+p.gram ? `<span class="cost">Altın: ${esc(p.gram)} gr</span>` : ''}${L.map(l => `<span class="cost">${esc(l)}</span>`).join('')}
+  ${p.desc ? `<p class="desc" style="margin:0">${esc(p.desc)}</p>` : ''}
+  ${admin ? `<div class="box"><b>Maliyet</b><span>${fmt(+p.cost \vert{}\vert{} 0, p.cu \vert{}\vert{} 'TRY')}${r ? ` (${fmt(r.base,'TRY')})` : ''}</span>${r ? `<span class="cost">Formül değeri: ${fmt(r.add,'TRY')}</span>` : ''}</div>` : ''}
+  <div class="row">${admin ? '<button id="ve">Düzenle</button>' : ''}<button class="p" id="vx">Kapat</button></div></div></div>`;
 }
 
-function handleLogout() {
-    isAuthenticated = false;
-    render();
+function editor() {
+  const s = ed.st || (ed.st = {t:'none'}), T = {none:'Yok', clear:'Renksiz (pırlanta)', color:'Renkli taş'}, sc = s.scale || 'GIA (D–Z)';
+  const stone = ed.cat === 'Saat' ? '' : `<div class="box"><label>Taş<select id="st">${Object.entries(T).map(([k, v]) => `<option value="${k}" ${k === s.t ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+  ${s.t === 'clear' ? `<label>Berraklık<select id="cl">${opts(CLARITY, s.clarity)}</select></label><label>Renk skalası<select id="sc">${opts(Object.keys(SCALES), sc)}</select></label><label>Renk<select id="co">${opts(SCALES[sc], s.color)}</select></label>` : ''}
+  ${s.t === 'color' ? `<label>Taş cinsi<select id="sn">${opts(COLORED, s.name)}</select></label>` : ''}
+  ${s.t !== 'none' ? `<label>Karat<input id="ct" type="number" step="0.01" value="${esc(s.ct || '')}"></label>` : ''}</div>`;
+  return `<div class="modal"><div class="mbox"><h1>${ed.isNew ? 'Yeni ürün' : 'Ürünü düzenle'}</h1>
+  <label>Görsel Linki (URL)<input id="imgurl" value="${esc(ed.img)}"></label>
+  <label>Ürün adı<input id="n" value="${esc(ed.name)}"></label>
+  <label>Kategori<select id="c">${opts(D.cats, ed.cat)}</select></label>
+  <label>Maliyet fiyatı<div class="two"><input id="m" type="number" step="0.01" value="${esc(ed.cost)}"><select id="cu">${opts(['TRY','USD','EUR'], ed.cu || 'TRY')}</select></div></label>
+  <label>Kullanılan altın (gr)<input id="g" type="number" step="0.01" value="${esc(ed.gram || '')}"></label>
+  ${stone}
+  <label>Açıklama<textarea id="d" rows="4">${esc(ed.desc)}</textarea></label>
+  <div class="row">${ed.isNew ? '' : '<button class="d" id="del">Sil</button>'}<button id="x">Vazgeç</button><button class="p" id="ok">Tamam</button></div></div></div>`;
+}
+
+function grab() {
+  const v = id => { const e = $(id); return e ? e.value : undefined; };
+  ed.name = v('#n'); ed.cat = v('#c'); ed.cost = +v('#m') || 0; ed.cu = v('#cu'); ed.gram = v('#g'); ed.desc = v('#d'); ed.img = v('#imgurl');
+  const s = ed.st || (ed.st = {t:'none'});
+  [['#st','t'],['#cl','clarity'],['#sc','scale'],['#co','color'],['#sn','name'],['#ct','ct']].forEach(([id, k]) => { const x = v(id); if (x !== undefined) s[k] = x; });
+}
+
+function bindEditor() {
+  $('#x').onclick = () => { ed = null; render(); };
+  ['#c', '#st', '#sc'].forEach(id => { const e = $(id); if (e) e.onchange = () => { grab(); if (id === '#sc') ed.st.color = ''; render(); }; });
+  $('#ok').onclick = () => { grab(); const {isNew, ...p} = ed; const i = D.products.findIndex(o => o.id === p.id); i < 0 ? D.products.push(p) : D.products[i] = p; ed = null; render(); save(); };
+  const del = $('#del'); if (del) del.onclick = () => { if (confirm('Bu ürün silinsin mi?')) { D.products = D.products.filter(p => p.id !== ed.id); ed = null; render(); save(); } };
+}
+
+function ratesBox() {
+  const R = D.rates;
+  return `<div class="modal"><div class="mbox"><h1>Kurlar</h1><p class="cost" style="margin:0">Güncel değerleri girin (₺ cinsinden).</p>
+  <label>Gram altın<input id="rg" type="number" step="0.01" value="${esc(R.gold || '')}"></label><label>USD<input id="ru" type="number" step="0.0001" value="${esc(R.usd || '')}"></label><label>EUR<input id="re" type="number" step="0.0001" value="${esc(R.eur || '')}"></label>
+  <div class="row"><button id="rx">Kapat</button><button class="p" id="rk">Kaydet</button></div></div></div>`;
+}
+
+function bindRates() {
+  $('#rx').onclick = () => { rt = false; render(); };
+  $('#rk').onclick = () => { D.rates = {gold:+$('#rg').value || 0, usd:+$('#ru').value \vert{}\vert{} 0, eur:+$('#re').value || 0, at:'Son güncelleme: ' + new Date().toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'})}; rt = false; render(); save(); };
+}
+
+function settings() {
+  const a = D.acc;
+  return `<div class="modal"><div class="mbox"><h1>Ayarlar</h1><b>Yönetici (sen)</b><label>Kullanıcı adı<input id="au" value="${esc(a.admin.user)}"></label><label>Şifre<input id="ap" value="${esc(a.admin.pass)}"></label><b>Müşteri girişi</b><label>Kullanıcı adı<input id="vu" value="${esc(a.viewer.user)}"></label><label>Şifre<input id="vp" value="${esc(a.viewer.pass)}"></label><div class="row"><button id="sx">Kapat</button><button class="p" id="sk">Tamam</button></div></div></div>`;
+}
+
+function bindSettings() {
+  $('#sx').onclick = () => { sett = false; render(); };
+  $('#sk').onclick = () => { const a = D.acc, v = id => $(id).value.trim(); a.admin.user = v('#au') || a.admin.user; a.admin.pass = v('#ap') || a.admin.pass; a.viewer.user = v('#vu') || a.viewer.user; a.viewer.pass = v('#vp') || a.viewer.pass; sett = false; render(); save(); };
+}
+
+function login() {
+  const u = $('#u').value.trim(), p = $('#p').value.trim();
+  if (u === D.acc.admin.user && p === D.acc.admin.pass) {
+    auth = true; admin = true; err = ''; render();
+  } else if (u === D.acc.viewer.user && p === D.acc.viewer.pass) {
+    auth = true; admin = false; err = ''; render();
+  } else {
+    err = 'Kullanıcı adı veya şifre hatalı.'; render();
+  }
 }
 
 render();
 </script>
-
 </body>
 </html>
