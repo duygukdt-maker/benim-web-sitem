@@ -33,17 +33,30 @@ label{font-size:.85rem;color:var(--mut);display:flex;flex-direction:column;gap:4
 </head>
 <body>
 <div class="wrap" id="app"></div>
-<script id="data" type="application/json">{"v":0,"acc":{"admin":{"user":"admin","pass":"1234"},"viewer":{"user":"musteri","pass":"1234"}},"cats":["Yüzük","Bileklik","Bilezik","Kolye","Küpe","Saat","Taş"],"products":[],"rates":{"gold":0,"usd":0,"eur":0,"at":""}}</script>
-<script>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// 1) Firebase konsolundan aldığın değerleri buraya yapıştır
+const firebaseConfig = {
+  apiKey: "AIzaSyDBdSfyc0PmikQ_wdIH5PnhiOeBj_zOlDU",
+  authDomain: "adia-35e1b.firebaseapp.com",
+  projectId: "adia-35e1b",
+  appId: "1:1064840168085:web:03229f4bfbd501d7b5519c"
+};
+const ADMIN_USER = "admin";          // yönetici kullanıcı adı
+const DOMAIN = "@katalog.example";   // kullanıcı adının sonuna eklenen sahte e-posta uzantısı
+const DEFAULT_CATS = ["Yüzük","Bileklik","Bilezik","Kolye","Küpe","Saat","Taş"];
 window.claude = {use: async n => n === 'assets' ? {upload: f => shrink(f)} : null};
 function shrink(f) {
   return new Promise((ok, no) => {
     const im = new Image(), u = URL.createObjectURL(f);
     im.onload = () => {
-      const k = Math.min(1, 900 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      const k = Math.min(1, 800 / Math.max(im.width, im.height)), c = document.createElement('canvas');
       c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
       c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u);
-      ok({id: c.toDataURL('image/jpeg', 0.8)});
+      ok({id: c.toDataURL('image/jpeg', 0.75)});
     };
     im.onerror = no; im.src = u;
   });
@@ -54,16 +67,15 @@ const COLORED = ["Yakut (Ruby)","Safir (Sapphire)","Zümrüt (Emerald)","Ametist
 const CLARITY = ["FL","IF","VVS1","VVS2","VS1","VS2","SI1","SI2","I1","I2","I3"];
 const SCALES = {"GIA (D–Z)": "DEFGHIJKLMNOPQRSTUVWXYZ".split(''), "Eski (River–Cape)": ["River (D-E)","Top Wesselton (F)","Wesselton (G-H)","Top Crystal (I-J)","Crystal (K-L)","Top Cape (M-N)","Cape (O-Z)"]};
 const $ = s => document.querySelector(s);
-let D = {cats:[],products:[],rates:{}}, auth = false, admin = false, q = '', cat = 'Tümü', ed = null, sett = false, rt = false, err = '', view = null;
+let D = {cats:[],products:[],rates:{}}, auth = false, admin = false, q = '', cat = 'Tümü', ed = null, rt = false, err = '', view = null;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = (n, c) => new Intl.NumberFormat('tr-TR', {style:'currency', currency:c}).format(n);
 const num = n => +n ? new Intl.NumberFormat('tr-TR', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n) : '–';
 const rate = c => c === 'USD' ? +D.rates.usd : c === 'EUR' ? +D.rates.eur : 1;
 function price(p) {
-  if ('pr' in p) return p.pr;
-  const r = rate(p.cu || 'TRY'); if (!r) return null;
-  const base = (+p.cost || 0) * r, tl = base + FORMULA(base), e = +D.rates.eur;
-  return {base, add:FORMULA(base), tl, eur: e ? tl / e : null};
+  const e = +D.rates.eur;
+  if (admin) { const r = rate(p.cu || 'TRY'); if (!r) return null; const base = (+p.cost || 0) * r, tl = base + FORMULA(base); return {base, add:FORMULA(base), tl, eur: e ? tl / e : null}; }
+  return p.tl ? {tl:p.tl, eur: e ? p.tl / e : null} : null;
 }
 const priceHtml = p => { const r = price(p); return r ? `<span class="price">${fmt(r.tl,'TRY')}</span>${r.eur ? `<span class="eur">${fmt(r.eur,'EUR')}</span>` : ''}` : '<span class="cost">Kur girilmedi</span>'; };
 const opts = (arr, v) => arr.map(a => `<option ${a === v ? 'selected' : ''}>${esc(a)}</option>`).join('');
@@ -81,11 +93,11 @@ function render() {
   }
   const R = D.rates, list = D.products.filter(p => (cat === 'Tümü' || p.cat === cat) && p.name.toLowerCase().includes(q.toLowerCase()));
   app.innerHTML = `<div class="rates"><span>Gram altın: <b>${num(R.gold)} ₺</b></span><span>USD: <b>${num(R.usd)} ₺</b></span><span>EUR: <b>${num(R.eur)} ₺</b></span><span class="cost">${esc(R.at)}</span>${admin ? '<button id="rt">Kurları güncelle</button>' : ''}</div>
-  <header><h1>Ürün Kataloğu</h1><div class="row">${admin ? '<button id="add" class="p">+ Ürün</button><button id="addc">+ Kategori</button><button id="set">Ayarlar</button><button id="pub" class="p">Yayına hazırla</button>' : ''}<button id="out">Çıkış</button></div></header>
+  <header><h1>Ürün Kataloğu</h1><div class="row">${admin ? '<button id="add" class="p">+ Ürün</button><button id="addc">+ Kategori</button>' : ''}<button id="out">Çıkış</button></div></header>
   <div class="bar"><input id="q" placeholder="Ürün ara…" value="${esc(q)}"></div>
   <div class="chips">${['Tümü', ...D.cats].map(c => `<button class="${c === cat ? 'on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
   <div class="grid">${list.map(p => `<div class="card" data-v="${p.id}"><div class="img">${p.img ? `<img src="${esc(p.img)}" alt="${esc(p.name)}">` : 'Görsel yok'}</div><div class="body"><span class="cat">${esc(p.cat)}</span><strong>${esc(p.name)}</strong>${priceHtml(p)}${admin ? `<button data-e="${p.id}">Düzenle</button>` : ''}</div></div>`).join('') || '<p>Henüz ürün yok.</p>'}</div>
-  ${ed ? editor() : ''}${sett ? settings() : ''}${rt ? ratesBox() : ''}${view ? viewer() : ''}`;
+  ${ed ? editor() : ''}${rt ? ratesBox() : ''}${view ? viewer() : ''}`;
   $('#q').oninput = e => { q = e.target.value; render(); const i = $('#q'); i.focus(); i.setSelectionRange(q.length, q.length); };
   app.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { cat = b.dataset.c; render(); });
   app.querySelectorAll('[data-v]').forEach(c => c.onclick = () => { view = D.products.find(p => p.id === c.dataset.v); render(); });
@@ -94,11 +106,9 @@ function render() {
   if (!admin) return;
   app.querySelectorAll('[data-e]').forEach(b => b.onclick = e => { e.stopPropagation(); ed = JSON.parse(JSON.stringify(D.products.find(p => p.id === b.dataset.e))); render(); });
   $('#add').onclick = () => { ed = {id:'p' + Date.now(), name:'', cat:D.cats[0], cost:0, cu:'TRY', gram:'', desc:'', img:'', st:{t:'none'}, isNew:true}; render(); };
-  $('#addc').onclick = () => { const n = prompt('Yeni kategori adı:'); if (n && !D.cats.includes(n)) { D.cats.push(n); render(); save(); } };
-  $('#set').onclick = () => { sett = true; render(); };
+  $('#addc').onclick = () => { const n = prompt('Yeni kategori adı:'); if (n && !D.cats.includes(n)) saveMeta({cats: [...D.cats, n]}); };
   $('#rt').onclick = () => { rt = true; render(); };
-  $('#pub').onclick = exportHtml;
-  if (ed) bindEditor(); if (sett) bindSettings(); if (rt) bindRates();
+  if (ed) bindEditor(); if (rt) bindRates();
 }
 function viewer() {
   const p = view, r = price(p), L = stoneLines(p);
@@ -139,8 +149,8 @@ function bindEditor() {
     const a = await claude.use('assets'); if (!a) return alert('Görsel yükleme bu görünümde kullanılamıyor.');
     try { grab(); const r = await a.upload(e.target.files[0]); ed.img = r.id; render(); } catch (x) { alert('Yükleme başarısız.'); }
   };
-  $('#ok').onclick = () => { grab(); const {isNew, ...p} = ed; const i = D.products.findIndex(o => o.id === p.id); i < 0 ? D.products.push(p) : D.products[i] = p; ed = null; render(); save(); };
-  const del = $('#del'); if (del) del.onclick = () => { if (confirm('Bu ürün silinsin mi?')) { D.products = D.products.filter(p => p.id !== ed.id); ed = null; render(); save(); } };
+  $('#ok').onclick = async () => { grab(); const p = JSON.parse(JSON.stringify(ed)); ed = null; render(); await saveProduct(p); };
+  const del = $('#del'); if (del) del.onclick = async () => { if (confirm('Bu ürün silinsin mi?')) { const id = ed.id; ed = null; render(); await delProduct(id); } };
 }
 async function upBlob(f) {
   const a = await claude.use('assets'); if (!a) return alert('Görsel yükleme bu görünümde kullanılamıyor.');
@@ -165,45 +175,44 @@ function ratesBox() {
 }
 function bindRates() {
   $('#rx').onclick = () => { rt = false; render(); };
-  $('#rk').onclick = () => { D.rates = {gold:+$('#rg').value || 0, usd:+$('#ru').value || 0, eur:+$('#re').value || 0, at:'Son güncelleme: ' + new Date().toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'})}; rt = false; render(); save(); };
+  $('#rk').onclick = async () => {
+    const r = {gold:+$('#rg').value || 0, usd:+$('#ru').value || 0, eur:+$('#re').value || 0, at:'Son güncelleme: ' + new Date().toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'})};
+    rt = false; META.rates = r; D.rates = r; render(); await saveMeta({rates: r});
+    await guard(async () => { const b = writeBatch(fdb); D.products.forEach(p => b.update(doc(fdb, 'products', p.id), {tl: tlOf(p)})); await b.commit(); });
+  };
 }
-function settings() {
-  const a = D.acc;
-  return `<div class="modal"><div class="mbox"><h1>Ayarlar</h1><b>Yönetici (sen)</b><label>Kullanıcı adı<input id="au" value="${esc(a.admin.user)}"></label><label>Şifre<input id="ap" value="${esc(a.admin.pass)}"></label><b>Müşteri girişi</b><label>Kullanıcı adı<input id="vu" value="${esc(a.viewer.user)}"></label><label>Şifre<input id="vp" value="${esc(a.viewer.pass)}"></label><div class="row"><button id="sx">Kapat</button><button class="p" id="sk">Tamam</button></div></div></div>`;
+let P = [], C = {}, META = {cats: DEFAULT_CATS, rates: {gold:0, usd:0, eur:0, at:''}}, unsubs = [];
+const fapp = initializeApp(firebaseConfig), fauth = getAuth(fapp), fdb = getFirestore(fapp);
+const emailOf = u => { u = u.trim().toLowerCase(); return u.includes('@') ? u : u + DOMAIN; };
+const clean = o => JSON.parse(JSON.stringify(o));
+const tlOf = p => { const r = rate(p.cu || 'TRY'); if (!r) return null; const b = (+p.cost || 0) * r; return b + FORMULA(b); };
+async function guard(fn) { try { await fn(); } catch (e) { alert('Kaydedilemedi: ' + (e.code || e.message)); } }
+const saveProduct = p => guard(async () => {
+  const {cost, cu, isNew, ...pub} = p;
+  await setDoc(doc(fdb, 'products', p.id), clean({...pub, tl: tlOf(p)}));
+  await setDoc(doc(fdb, 'costs', p.id), clean({cost: cost || 0, cu: cu || 'TRY'}));
+});
+const delProduct = id => guard(async () => { await deleteDoc(doc(fdb, 'products', id)); await deleteDoc(doc(fdb, 'costs', id)); });
+const saveMeta = patch => guard(async () => { await setDoc(doc(fdb, 'meta', 'main'), clean({cats: D.cats, rates: D.rates, ...patch})); });
+function rebuild() {
+  D = {cats: META.cats || DEFAULT_CATS, rates: META.rates || {gold:0, usd:0, eur:0, at:''}, products: P.map(p => admin ? {...p, ...(C[p.id] || {})} : p)};
 }
-function bindSettings() {
-  $('#sx').onclick = () => { sett = false; render(); };
-  $('#sk').onclick = () => { const a = D.acc, v = id => $(id).value.trim(); a.admin.user = v('#au') || a.admin.user; a.admin.pass = v('#ap') || a.admin.pass; a.viewer.user = v('#vu') || a.viewer.user; a.viewer.pass = v('#vp') || a.viewer.pass; sett = false; render(); save(); };
+function refresh() { rebuild(); if (!ed && !rt) render(); }
+const onErr = e => console.error(e);
+async function login() {
+  try { await signInWithEmailAndPassword(fauth, emailOf($('#u').value), $('#p').value); err = ''; }
+  catch (e) { err = 'Kullanıcı adı veya şifre hatalı.'; render(); }
 }
-const DATA = JSON.parse($('#data').textContent);
-function load() {
-  let role = null; try { role = sessionStorage.getItem('role'); } catch (e) {}
-  if (!role) { auth = false; return render(); }
-  D = JSON.parse(JSON.stringify(DATA)); admin = role === 'admin'; auth = true;
-  if (admin) { try { const dr = JSON.parse(localStorage.getItem('katalog_draft') || 'null'); if (dr && dr.savedAt > (DATA.v || 0)) D = dr.d; } catch (e) {} }
-  render();
-}
-function login() {
-  const u = $('#u').value, p = $('#p').value, a = DATA.acc;
-  const r = u === a.admin.user && p === a.admin.pass ? 'admin' : (u === a.viewer.user && p === a.viewer.pass ? 'viewer' : null);
-  if (!r) { err = 'Kullanıcı adı veya şifre hatalı.'; return render(); }
-  err = ''; try { sessionStorage.setItem('role', r); } catch (e) {} load();
-}
-function logout() { try { sessionStorage.removeItem('role'); } catch (e) {} auth = false; admin = false; render(); }
-function save() {
-  try { localStorage.setItem('katalog_draft', JSON.stringify({savedAt: Date.now(), d: D})); }
-  catch (e) { alert('Taslak tarayıcıya sığmadı. Hemen "Yayına hazırla" ile dosyayı indir.'); }
-}
-function exportHtml() {
-  D.v = Date.now(); save();
-  const c = document.documentElement.cloneNode(true);
-  c.querySelector('#app').innerHTML = '';
-  c.querySelector('#data').textContent = JSON.stringify(D).replace(/</g, '\\u003c');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['<!doctype html>\n' + c.outerHTML], {type: 'text/html'}));
-  a.download = 'index.html'; document.body.appendChild(a); a.click(); a.remove();
-  alert('index.html indirildi. GitHub deposundaki index.html ile değiştir (Upload files) ve Commit et.');
-}
-load();
+function logout() { signOut(fauth); }
+onAuthStateChanged(fauth, u => {
+  unsubs.forEach(f => f()); unsubs = []; P = []; C = {};
+  if (!u) { auth = false; admin = false; return render(); }
+  auth = true; admin = u.email === emailOf(ADMIN_USER);
+  unsubs.push(onSnapshot(collection(fdb, 'products'), s => { P = s.docs.map(d => d.data()); refresh(); }, onErr));
+  unsubs.push(onSnapshot(doc(fdb, 'meta', 'main'), s => { if (s.exists()) META = s.data(); rebuild(); if (!s.exists() && admin) saveMeta({}); refresh(); }, onErr));
+  if (admin) unsubs.push(onSnapshot(collection(fdb, 'costs'), s => { C = {}; s.docs.forEach(d => C[d.id] = d.data()); refresh(); }, onErr));
+  refresh();
+});
+$('#app').textContent = 'Yükleniyor…';
 </script>
 </body></html>
