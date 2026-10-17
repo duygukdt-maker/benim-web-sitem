@@ -34,6 +34,17 @@ label{font-size:.85rem;color:var(--mut);display:flex;flex-direction:column;gap:4
 <body>
 <div class="wrap" id="app"></div>
 <script>
+// Güvenli hafıza yöneticisi (LocalStorage engellense bile asla çökmez)
+let memoryStore = {};
+const safeStorage = {
+  getItem: (key) => {
+    try { return localStorage.getItem(key); } catch (e) { return memoryStore[key] || null; }
+  },
+  setItem: (key, val) => {
+    try { localStorage.setItem(key, val); } catch (e) { memoryStore[key] = val; }
+  }
+};
+
 const DEFAULT_DATA = {
   cats: ["Yüzük", "Kolye", "Bilezik", "Saat"],
   products: [],
@@ -45,16 +56,16 @@ const DEFAULT_DATA = {
 };
 
 function loadData() {
-  const saved = localStorage.getItem('catalog_db');
+  const saved = safeStorage.getItem('catalog_db');
   if (saved) {
     try { return JSON.parse(saved); } catch(e){}
   }
-  localStorage.setItem('catalog_db', JSON.stringify(DEFAULT_DATA));
+  safeStorage.setItem('catalog_db', JSON.stringify(DEFAULT_DATA));
   return JSON.parse(JSON.stringify(DEFAULT_DATA));
 }
 
 function saveData() {
-  localStorage.setItem('catalog_db', JSON.stringify(D));
+  safeStorage.setItem('catalog_db', JSON.stringify(D));
 }
 
 const FORMULA = c => c / 3 / 1.25;
