@@ -88,7 +88,7 @@ function stoneLines(p) {
 function render() {
   const app = $('#app');
   if (!auth) {
-    app.innerHTML = `<div class="login"><h1>Giriş</h1><input id="u" placeholder="Kullanıcı adı" autocomplete="username"><input id="p" type="password" placeholder="Şifre" autocomplete="current-password"><div class="err">${esc(err)}</div><button class="p" id="go">Giriş yap</button></div>`;
+    app.innerHTML = `<div class="login"><h1>Giriş</h1><input id="u" placeholder="Kullanıcı adı" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"><input id="p" type="password" placeholder="Şifre" autocomplete="current-password"><div class="err">${esc(err)}</div><button class="p" id="go">Giriş yap</button></div>`;
     $('#go').onclick = login; $('#p').onkeydown = e => { if (e.key === 'Enter') login(); }; return;
   }
   const R = D.rates, list = D.products.filter(p => (cat === 'Tümü' || p.cat === cat) && p.name.toLowerCase().includes(q.toLowerCase()));
@@ -199,9 +199,23 @@ function rebuild() {
 }
 function refresh() { rebuild(); if (!ed && !rt) render(); }
 const onErr = e => console.error(e);
+const LOGIN_ERR = {
+  'auth/invalid-credential': 'Kullanıcı adı veya şifre hatalı.',
+  'auth/wrong-password': 'Kullanıcı adı veya şifre hatalı.',
+  'auth/user-not-found': 'Kullanıcı adı veya şifre hatalı.',
+  'auth/invalid-email': 'Kullanıcı adı geçersiz.',
+  'auth/unauthorized-domain': 'Bu site adresi Firebase\'de yetkili değil. Authentication > Settings > Authorized domains kısmına ekle.',
+  'auth/operation-not-allowed': 'Firebase\'de Email/Password girişi kapalı. Authentication > Sign-in method kısmından aç.',
+  'auth/network-request-failed': 'İnternet bağlantısı hatası. Tekrar dene.',
+  'auth/too-many-requests': 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar dene.',
+  'auth/invalid-api-key': 'Koddaki apiKey hatalı.',
+  'auth/api-key-not-valid': 'Koddaki apiKey hatalı.'
+};
 async function login() {
-  try { await signInWithEmailAndPassword(fauth, emailOf($('#u').value), $('#p').value); err = ''; }
-  catch (e) { err = 'Kullanıcı adı veya şifre hatalı.'; render(); }
+  const u = $('#u').value, p = $('#p').value;
+  if (!u.trim() || !p) { err = 'Kullanıcı adı ve şifreyi yaz.'; return render(); }
+  try { await signInWithEmailAndPassword(fauth, emailOf(u), p); err = ''; }
+  catch (e) { err = LOGIN_ERR[e.code] || ('Giriş yapılamadı: ' + (e.code || e.message)); console.error(e); render(); $('#u').value = u; }
 }
 function logout() { signOut(fauth); }
 onAuthStateChanged(fauth, u => {
