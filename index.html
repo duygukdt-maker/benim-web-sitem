@@ -1,70 +1,70 @@
 <!doctype html>
 <html lang="tr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Urun Katalogu</title>
-<style>
-body { font-family: Arial, sans-serif; background: #f6f4ef; color: #1f1d1a; margin: 0; padding: 20px; }
-.box { max-width: 350px; margin: 100px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-input, button { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
-button { background: #1f5c4a; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
-.err { color: #b3372b; font-size: 14px; }
-</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Urun Katalogu</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f6f4ef; color: #1f1d1a; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { background: #fff; padding: 30px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 100%; max-width: 360px; box-sizing: border-box; }
+        h2 { margin-top: 0; color: #1f5c4a; font-size: 1.5rem; text-align: center; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #e4dfd5; border-radius: 10px; box-sizing: border-box; font-size: 1rem; }
+        button { width: 100%; padding: 12px; background: #1f5c4a; color: #fff; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+        button:hover { background: #164335; }
+        .error { color: #b3372b; font-size: 0.9rem; text-align: center; margin-bottom: 10px; min-height: 20px; }
+        .success { text-align: center; }
+        .success h1 { color: #1f5c4a; font-size: 1.8rem; }
+        .logout-btn { background: #b3372b; margin-top: 20px; }
+    </style>
 </head>
 <body>
 
-<div id="app"></div>
+<div id="app" class="card"></div>
 
 <script>
-let auth = false;
-let db = {
-  admin: { user: "admin", pass: "1234" },
-  viewer: { user: "musteri", pass: "1234" },
-  products: []
-};
+let isAuthenticated = false;
 
 function render() {
-  const app = document.getElementById("app");
-  if (!auth) {
-    app.innerHTML = `
-      <div class="box">
-        <h2>Giris Yap</h2>
-        <input id="u" placeholder="Kullanici Adi">
-        <input id="p" type="password" placeholder="Sifre">
-        <div id="err" class="err"></div>
-        <button onclick="girisYap()">Giris Yap</button>
-      </div>
-    `;
-  } else {
-    app.innerHTML = `
-      <div style="max-width:800px; margin:0 auto;">
-        <h1>Urun Katalogu</h1>
-        <p>Hos geldiniz! Basariyla giris yaptiniz.</p>
-        <button onclick="cikisYap()" style="width:auto; padding:5px 15px;">Cikis Yap</button>
-      </div>
-    `;
-  }
+    const app = document.getElementById("app");
+    
+    if (!isAuthenticated) {
+        app.innerHTML = `
+            <h2>Giriş Yap</h2>
+            <div id="errMsg" class="error"></div>
+            <input type="text" id="userInput" placeholder="Kullanıcı Adı" autocomplete="username">
+            <input type="password" id="passInput" placeholder="Şifre" autocomplete="current-password">
+            <button onclick="handleLogin()">Giriş Yap</button>
+        `;
+        
+        document.getElementById("passInput").onkeydown = function(e) {
+            if (e.key === "Enter") handleLogin();
+        };
+    } else {
+        app.innerHTML = `
+            <div class="success">
+                <h1>Başarılı! 🎉</h1>
+                <p>Sisteme hoş geldiniz.</p>
+                <button class="logout-btn" onclick="handleLogout()">Çıkış Yap</button>
+            </div>
+        `;
+    }
 }
 
-function girisYap() {
-  const u = document.getElementById("u").value.trim();
-  const p = document.getElementById("p").value.trim();
-  
-  if (u === db.admin.user && p === db.admin.pass) {
-    auth = true;
-    render();
-  } else if (u === db.viewer.user && p === db.viewer.pass) {
-    auth = true;
-    render();
-  } else {
-    document.getElementById("err").innerText = "Kullanici adi veya sifre hatali!";
-  }
+function handleLogin() {
+    const u = document.getElementById("userInput").value.trim();
+    const p = document.getElementById("passInput").value.trim();
+    
+    if ((u === "admin" && p === "1234") || (u === "musteri" && p === "1234")) {
+        isAuthenticated = true;
+        render();
+    } else {
+        document.getElementById("errMsg").innerText = "Kullanıcı adı veya şifre hatalı!";
+    }
 }
 
-function cikisYap() {
-  auth = false;
-  render();
+function handleLogout() {
+    isAuthenticated = false;
+    render();
 }
 
 render();
