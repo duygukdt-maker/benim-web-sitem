@@ -34,7 +34,6 @@ label{font-size:.85rem;color:var(--mut);display:flex;flex-direction:column;gap:4
 <body>
 <div class="wrap" id="app"></div>
 <script>
-// LocalStorage tabanlı yerel veri yönetimi
 const DEFAULT_DATA = {
   cats: ["Yüzük", "Kolye", "Bilezik", "Saat"],
   products: [],
@@ -129,8 +128,7 @@ function editor() {
   ${s.t === 'color' ? `<label>Taş cinsi<select id="sn">${opts(COLORED, s.name)}</select></label>` : ''}
   ${s.t !== 'none' ? `<label>Karat<input id="ct" type="number" step="0.01" value="${esc(s.ct || '')}"></label>` : ''}</div>`;
   return `<div class="modal"><div class="mbox"><h1>${ed.isNew ? 'Yeni ürün' : 'Ürünü düzenle'}</h1>
-  <div class="img" style="border-radius:10px;overflow:hidden">${ed.img ? `<img src="${esc(ed.img)}">` : 'Görsel yok'}</div>
-  <div class="row" style="justify-content:flex-start"><button type="button" id="gal">🖼️ Görsel Seç</button></div><input type="file" id="f" accept="image/*" hidden>
+  <label>Görsel Linki (URL)<input id="imgurl" value="${esc(ed.img)}"></label>
   <label>Ürün adı<input id="n" value="${esc(ed.name)}"></label>
   <label>Kategori<select id="c">${opts(D.cats, ed.cat)}</select></label>
   <label>Maliyet fiyatı<div class="two"><input id="m" type="number" step="0.01" value="${esc(ed.cost)}"><select id="cu">${opts(['TRY','USD','EUR'], ed.cu || 'TRY')}</select></div></label>
@@ -142,7 +140,7 @@ function editor() {
 
 function grab() {
   const v = id => { const e = $(id); return e ? e.value : undefined; };
-  ed.name = v('#n'); ed.cat = v('#c'); ed.cost = +v('#m') || 0; ed.cu = v('#cu'); ed.gram = v('#g'); ed.desc = v('#d');
+  ed.name = v('#n'); ed.cat = v('#c'); ed.cost = +v('#m') || 0; ed.cu = v('#cu'); ed.gram = v('#g'); ed.desc = v('#d'); ed.img = v('#imgurl');
   const s = ed.st || (ed.st = {t:'none'});
   [['#st','t'],['#cl','clarity'],['#sc','scale'],['#co','color'],['#sn','name'],['#ct','ct']].forEach(([id, k]) => { const x = v(id); if (x !== undefined) s[k] = x; });
 }
@@ -150,15 +148,6 @@ function grab() {
 function bindEditor() {
   $('#x').onclick = () => { ed = null; render(); };
   ['#c', '#st', '#sc'].forEach(id => { const e = $(id); if (e) e.onchange = () => { grab(); if (id === '#sc') ed.st.color = ''; render(); }; });
-  $('#gal').onclick = () => $('#f').click();
-  $('#f').onchange = e => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = ev => { grab(); ed.img = ev.target.result; render(); };
-      reader.readAsDataURL(file);
-    }
-  };
   $('#ok').onclick = () => { grab(); const {isNew, ...p} = ed; const i = D.products.findIndex(o => o.id === p.id); i < 0 ? D.products.push(p) : D.products[i] = p; ed = null; render(); saveData(); };
   const del = $('#del'); if (del) del.onclick = () => { if (confirm('Bu ürün silinsin mi?')) { D.products = D.products.filter(p => p.id !== ed.id); ed = null; render(); saveData(); } };
 }
