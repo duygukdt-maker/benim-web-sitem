@@ -33,12 +33,6 @@ label{font-size:.85rem;color:var(--mut);display:flex;flex-direction:column;gap:4
 <body>
 <div class="wrap" id="app"></div>
 <script>
-let mem = {};
-const store = {
-  get: k => { try { return localStorage.getItem(k); } catch(e) { return mem[k] || null; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); } catch(e) { mem[k] = v; } }
-};
-
 const DEFAULT = {
   cats: ["Yüzük", "Kolye", "Bilezik", "Saat"],
   products: [],
@@ -50,13 +44,13 @@ const DEFAULT = {
 };
 
 function load() {
-  const s = store.get('catalog_db');
+  const s = localStorage.getItem('catalog_db');
   if (s) { try { return JSON.parse(s); } catch(e){} }
-  store.set('catalog_db', JSON.stringify(DEFAULT));
+  localStorage.setItem('catalog_db', JSON.stringify(DEFAULT));
   return JSON.parse(JSON.stringify(DEFAULT));
 }
 
-function save() { store.set('catalog_db', JSON.stringify(D)); }
+function save() { localStorage.setItem('catalog_db', JSON.stringify(D)); }
 
 const FORMULA = c => c / 3 / 1.25;
 const COLORED = ["Yakut (Ruby)","Safir (Sapphire)","Zümrüt (Emerald)","Ametist","Akuamarin","Topaz","Mavi Topaz","Turmalin","Granat","Peridot","Opal","Tanzanit","Sitrin","Morganit","Spinel","Aleksandrit","Turkuaz (Firuze)","Lapis Lazuli","Oniks","Mercan","İnci","Kunzit","Tsavorit","Rodolit","Ay Taşı","Kuvars","Zirkon","Heliodor","Diğer"];
@@ -64,7 +58,7 @@ const CLARITY = ["FL","IF","VVS1","VVS2","VS1","VS2","SI1","SI2","I1","I2","I3"]
 const SCALES = {"GIA (D–Z)": "DEFGHIJKLMNOPQRSTUVWXYZ".split(''), "Eski (River–Cape)": ["River (D-E)","Top Wesselton (F)","Wesselton (G-H)","Top Crystal (I-J)","Crystal (K-L)","Top Cape (M-N)","Cape (O-Z)"]};
 const $ = s => document.querySelector(s);
 
-let D = load(), auth = false, admin = false, q = '', cat = 'Tümü', ed = null, sett = false, rt = false, err = '', view = null;
+let D = load(), auth = localStorage.getItem('auth_active') === 'true', admin = localStorage.getItem('auth_admin') === 'true', q = '', cat = 'Tümü', ed = null, sett = false, rt = false, err = '', view = null;
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = (n, c) => new Intl.NumberFormat('tr-TR', {style:'currency', currency:c}).format(n);
@@ -102,7 +96,12 @@ function render() {
   <div class="grid">${list.map(p => `<div class="card" data-v="${p.id}"><div class="img">${p.img ? `<img src="${esc(p.img)}" alt="${esc(p.name)}">` : 'Görsel yok'}</div><div class="body"><span class="cat">${esc(p.cat)}</span><strong>${esc(p.name)}</strong>${priceHtml(p)}${admin ? `<button data-e="${p.id}">Düzenle</button>` : ''}</div></div>`).join('') || '<p>Henüz ürün yok.</p>'}</div>
   ${ed ? editor() : ''}${sett ? settings() : ''}${rt ? ratesBox() : ''}${view ? viewer() : ''}`;
   
-  $('#logout').onclick = () => { auth = false; admin = false; render(); };
+  $('#logout').onclick = () => { 
+    auth = false; admin = false; 
+    localStorage.removeItem('auth_active');
+    localStorage.removeItem('auth_admin');
+    render(); 
+  };
   $('#q').oninput = e => { q = e.target.value; render(); const i = $('#q'); i.focus(); i.setSelectionRange(q.length, q.length); };
   app.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { cat = b.dataset.c; render(); });
   app.querySelectorAll('[data-v]').forEach(c => c.onclick = () => { view = D.products.find(p => p.id === c.dataset.v); render(); });
@@ -165,7 +164,7 @@ function ratesBox() {
 
 function bindRates() {
   $('#rx').onclick = () => { rt = false; render(); };
-  $('#rk').onclick = () => { D.rates = {gold:+$('#rg').value || 0, usd:+$('#ru').value \vert{}\vert{} 0, eur:+$('#re').value || 0, at:'Son güncelleme: ' + new Date().toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'})}; rt = false; render(); save(); };
+  $('#rk').onclick = () => { D.rates = {gold:+$('#rg'].value || 0, usd:+$('#ru'].value \vert{}\vert{} 0, eur:+$('#re'].value || 0, at:'Son güncelleme: ' + new Date().toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'})}; rt = false; render(); save(); };
 }
 
 function settings() {
@@ -181,9 +180,15 @@ function bindSettings() {
 function login() {
   const u = $('#u').value.trim(), p = $('#p').value.trim();
   if (u === D.acc.admin.user && p === D.acc.admin.pass) {
-    auth = true; admin = true; err = ''; render();
+    auth = true; admin = true; err = ''; 
+    localStorage.setItem('auth_active', 'true');
+    localStorage.setItem('auth_admin', 'true');
+    render();
   } else if (u === D.acc.viewer.user && p === D.acc.viewer.pass) {
-    auth = true; admin = false; err = ''; render();
+    auth = true; admin = false; err = ''; 
+    localStorage.setItem('auth_active', 'true');
+    localStorage.setItem('auth_admin', 'false');
+    render();
   } else {
     err = 'Kullanıcı adı veya şifre hatalı.'; render();
   }
